@@ -5,11 +5,11 @@ class MyPromise {
         // 用闭包存储状态信息，防止状态被外部修改
         let status = 'pending'
         let result = null
-        this.getInfo = () => ({
+        this._getInfo = () => ({
             status,
             result
         })
-        this.init()
+        this._init()
 
         const pendingEnsure = (callback) => {
             return (...args) => {
@@ -18,53 +18,57 @@ class MyPromise {
                 }
             }
         }
-        const resolve = pendingEnsure((value) => {
-            status = 'fulfilled'
-            result = value
+        const transformStatus = (s, r) => {
+            status = s
+            result = r
             this.hooks.forEach((hook) => {
                 hook(status, result)
             })
+        }
+        const resolve = pendingEnsure((value) => {
+            transformStatus('fulfilled', value)
         })
         const reject = pendingEnsure((err) => {
-            status = 'rejected'
-            result = err
-            this.hooks.forEach((hook) => {
-                hook(status, result)
-            })
+            transformStatus('rejected', err)
         })
         executor(resolve, reject)
     }
     
-    init() {
+    _init() {
         this.hooks = []
     }
 
-    addHook(hook) {
+    _addHook(hook) {
         this.hooks.push(hook)
     }
     
-    asyncExec(callback) {
+    _asyncExec(callback) {
         setTimeout(callback, 0)
+    }
+    
+    _execOnTransform(onTransform, result, resolve, reject) {
+        this._asyncExec(() => {
+            const next = onTransform(result)
+            if (next instanceof MyPromise) {
+                next.then((r) => {
+                    resolve(r)
+                }).catch((e) => {
+                    reject(e)
+                })
+            } else {
+                resolve(next)
+            }
+        })
     }
 
     then(onFulfilled) {
-        const info = this.getInfo()
+        const info = this._getInfo()
         const { status, result } = info
         if (status === 'pending') {
-            let _resolve
-            let _reject
-            this.addHook((status, result) => {
+            let _resolve, _reject
+            this._addHook((status, result) => {
                 if (status === 'fulfilled') {
-                    const next = onFulfilled(result)
-                    if (next instanceof MyPromise) {
-                        next.then((r) => {
-                            _resolve(r)
-                        }).catch((e) => {
-                            _reject(e)
-                        })
-                    } else {
-                        _resolve(next)
-                    }
+                    this._execOnTransform(onFulfilled, result, _resolve, _reject)
                 } else {
                     _reject(result)
                 }
@@ -75,18 +79,7 @@ class MyPromise {
             })
         } else if (status === 'fulfilled') {
             return new MyPromise((resolve, reject) => {
-                this.asyncExec(() => {
-                    const next = onFulfilled(result)
-                    if (next instanceof MyPromise) {
-                        next.then((r) => {
-                            resolve(r)
-                        }).catch((e) => {
-                            reject(e)
-                        })
-                    } else {
-                        resolve(next)
-                    }
-                })
+                this._execOnTransform(onFulfilled, result, resolve, reject)
             })
         } else {
             return new MyPromise((resolve, reject) => {
@@ -96,25 +89,15 @@ class MyPromise {
     }
 
     catch (onRejected) {
-        const info = this.getInfo()
+        const info = this._getInfo()
         const { status, result } = info
         if (status === 'pending') {
-            let _resolve
-            let _reject
-            this.addHook((status, result) => {
+            let _resolve, _reject
+            this._addHook((status, result) => {
                 if (status === 'fulfilled') {
                     _resolve(result)
                 } else {
-                    const next = onRejected(result)
-                    if (next instanceof MyPromise) {
-                        next.then((r) => {
-                            _resolve(r)
-                        }).catch((e) => {
-                            _reject(e)
-                        })
-                    } else {
-                        _resolve(next)
-                    }
+                    this._execOnTransform(onRejected, result, _resolve, _reject)
                 }
             })
             return new MyPromise((resolve, reject) => {
@@ -127,18 +110,7 @@ class MyPromise {
             })
         } else {
             return new MyPromise((resolve, reject) => {
-                this.asyncExec(() => {
-                    const next = onRejected(result)
-                    if (next instanceof MyPromise) {
-                        next.then((r) => {
-                            resolve(r)
-                        }).catch((e) => {
-                            reject(e)
-                        })
-                    } else {
-                        resolve(next)
-                    }
-                })
+                this._execOnTransform(onRejected, result, resolve, reject)
             })
         }
     }
@@ -179,7 +151,7 @@ x.then((info) => {
     log('err', err)
 })
 
-log('sync done')
+log('sync code done')
 
 
 
