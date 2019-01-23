@@ -2,14 +2,14 @@ const log = console.log.bind(console)
 
 class MyPromise {
     constructor(executor) {
-        // 用闭包存储 promise 的状态信息，防止状态被外部修改
         let status = 'pending'
         let result = null
+        this._init()
+        // 用闭包存储 promise 的状态信息，防止状态被外部修改
         this._getInfo = () => ({
             status,
             result
         })
-        this._init()
 
         const pendingEnsure = (callback) => {
             return (...args) => {
@@ -21,7 +21,7 @@ class MyPromise {
         const transformStatus = (s, r) => {
             status = s
             result = r
-            this.hooks.forEach((hook) => {
+            this._hooks.forEach((hook) => {
                 this._asyncExec(hook, status, result)
             })
         }
@@ -30,16 +30,23 @@ class MyPromise {
         })
         const reject = pendingEnsure((err) => {
             transformStatus('rejected', err)
+            this._asyncExec(() => {
+                if (!this._processed) {
+                    console.warn('UnhandledPromiseRejectionWarning:', err)
+                }
+            })
         })
         executor(resolve, reject)
     }
     
     _init() {
-        this.hooks = []
+        this._hooks = []
+        this._processed = false
     }
+    
 
     _addHook(hook) {
-        this.hooks.push(hook)
+        this._hooks.push(hook)
     }
     
     _asyncExec(callback, ...args) {
@@ -60,6 +67,7 @@ class MyPromise {
     }
 
     then(onFulfilled) {
+        this._processed = true
         const info = this._getInfo()
         const { status, result } = info
         if (status === 'pending') {
@@ -86,6 +94,7 @@ class MyPromise {
     }
 
     catch (onRejected) {
+        this._processed = true
         const info = this._getInfo()
         const { status, result } = info
         if (status === 'pending') {
@@ -112,6 +121,7 @@ class MyPromise {
     }
     
     finally(onFinally) {
+        this._processed = true
         const info = this._getInfo()
         const { status, result } = info
         if (status === 'pending') {
@@ -145,6 +155,10 @@ class MyPromise {
 
 // test
 
+const asyncExec = (cb, ...args) => {
+    setTimeout(cb, 0, ...args)
+}
+
 const p = function(ms, v, success = true) {
     return new MyPromise((resolve, reject) => {
         setTimeout(function() {
@@ -169,14 +183,16 @@ x.then((info) => {
     log('finally 2')
 }).then((info) => {
     log('info2', info)
-    return p(1000, 'p2')
+    return p(1000, 'p3')
 }).then((info) => {
     log('info3', info)
-    return p(1000, 'p3', false)
+    return p(1000, 'p4', false)
 }).catch((err) => {
     log('err', err)
 }).finally(() => {
     log('finally 3')
+}).then(() => {
+    return p(12, 'error', false)
 })
 
 log('sync code done')
