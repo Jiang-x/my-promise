@@ -12,22 +12,24 @@ class MyPromise {
         this.init()
 
         const pendingEnsure = (callback) => {
-            if (status === 'pending') {
-                callback()
+            return (...args) => {
+                if (status === 'pending') {
+                    callback(...args)
+                }
             }
         }
         const resolve = pendingEnsure((value) => {
             status = 'fulfilled'
             result = value
-            hooks.forEach((cb) => {
-                cb(this)
+            this.hooks.forEach((hook) => {
+                hook(status, result)
             })
         })
         const reject = pendingEnsure((err) => {
             status = 'rejected'
             result = err
-            hooks.forEach((cb) => {
-                cb(this)
+            this.hooks.forEach((hook) => {
+                hook(status, result)
             })
         })
         executor(resolve, reject)
@@ -36,9 +38,13 @@ class MyPromise {
     init() {
         this.hooks = []
     }
-    
+
     addHook(hook) {
         this.hooks.push(hook)
+    }
+    
+    asyncExec(callback) {
+        setTimeout(callback, 0)
     }
 
     then(onFulfilled) {
@@ -47,11 +53,9 @@ class MyPromise {
         if (status === 'pending') {
             let _resolve
             let _reject
-            this.addHook((p) => {
-                const info = p.getInfo()
-                const { status, result } = info
+            this.addHook((status, result) => {
                 if (status === 'fulfilled') {
-                    let next = onFulfilled(result)
+                    const next = onFulfilled(result)
                     if (next instanceof MyPromise) {
                         next.then((r) => {
                             _resolve(r)
@@ -71,8 +75,8 @@ class MyPromise {
             })
         } else if (status === 'fulfilled') {
             return new MyPromise((resolve, reject) => {
-                setTimeout(function () {
-                    let next = onFulfilled(result)
+                this.asyncExec(() => {
+                    const next = onFulfilled(result)
                     if (next instanceof MyPromise) {
                         next.then((r) => {
                             resolve(r)
@@ -82,7 +86,7 @@ class MyPromise {
                     } else {
                         resolve(next)
                     }
-                }, 0);
+                })
             })
         } else {
             return new MyPromise((resolve, reject) => {
@@ -97,13 +101,11 @@ class MyPromise {
         if (status === 'pending') {
             let _resolve
             let _reject
-            this.addHook((p) => {
-                const info = p.getInfo()
-                const { status, result } = info
+            this.addHook((status, result) => {
                 if (status === 'fulfilled') {
                     _resolve(result)
                 } else {
-                    let next = onRejected(result)
+                    const next = onRejected(result)
                     if (next instanceof MyPromise) {
                         next.then((r) => {
                             _resolve(r)
@@ -125,8 +127,8 @@ class MyPromise {
             })
         } else {
             return new MyPromise((resolve, reject) => {
-                setTimeout(function () {
-                    let next = onRejected(result)
+                this.asyncExec(() => {
+                    const next = onRejected(result)
                     if (next instanceof MyPromise) {
                         next.then((r) => {
                             resolve(r)
@@ -136,7 +138,7 @@ class MyPromise {
                     } else {
                         resolve(next)
                     }
-                }, 0);
+                })
             })
         }
     }
@@ -146,10 +148,15 @@ class MyPromise {
     }
 }
 
-const p = function(ms, v, right = true) {
+
+
+
+// test
+
+const p = function(ms, v, success = true) {
     return new MyPromise((resolve, reject) => {
         setTimeout(function() {
-            if (right) {
+            if (success) {
                 resolve(v)
             } else {
                 reject(new Error(v))
@@ -159,20 +166,35 @@ const p = function(ms, v, right = true) {
 }
 
 
-
-var x = p(1000, 'p1')
+const x = p(1000, 'p1')
 
 x.then((info) => {
-    log('info', info)
+    log('info1', info)
     return p(1000, 'p2', false)
 }).then((info) => {
-    log(info)
+    log('info2', info)
 }).then((info) => {
-    log(info)
+    log('info3', info)
 }).catch((err) => {
-    log(err)
+    log('err', err)
 })
-log(1000)
+
+log('sync done')
+
+
+
+// 
+// x.then((info) => {
+//     log('info', info)
+//     return p(1000, 'p2', false)
+// }).then((info) => {
+//     log(info)
+// }).then((info) => {
+//     log(info)
+// }).catch((err) => {
+//     log(err)
+// })
+// log(1000)
 
 
 
