@@ -254,60 +254,123 @@ const ensure = function(a, b, message) {
     }
 }
 
+const nArr = (n) => {
+    const arr = []
+    for (let i = 1; i <= n; i++) {
+        arr.push(i)
+    }
+    return arr
+}
+
 const test1 = () => {
-    const result = []
+    const arr = []
     p(100, 'p1').then((v) => {
-        result.push(v)
+        arr.push(1)
         return p(100, 'p2', false)
-    }).then(() => {
-        result.push(null)
+    }).then((v) => {
+        arr.push(null)
         return 100
-    }).then(() => {
-        result.push(null)
-    }, (v) => {
-        result.push(v)
+    }).then((v) => {
+        arr.push(null)
+    }, (e) => {
+        arr.push(2)
         return p(100, 'p3', false)
     }).catch((e) => {
-        result.push(e)
+        arr.push(3)
         return p(100, 'p4')
     }).finally(() => {
-        result.push('finally')
+        arr.push(4)
     })
     
-    setTimeout(ensure, 1000, result, ['p1', 'p2', 'p3', 'finally'], 'basic')
+    setTimeout(ensure, 1000, arr, nArr(4), 'basic')
 }
 
 const test2 = () => {
-    const result = []
-    
-    setTimeout(ensure, 1000, result, ['p1', 'p2', 'p3', 'finally'], 'basic')
+    const arr = []
+    const promise = new MyPromise((resolve, reject) => {
+        arr.push(1)
+        resolve()
+        arr.push(2)
+    })
+    promise.then(() => {
+        arr.push(4)
+    })
+    arr.push(3)
+
+    setTimeout(ensure, 1000, arr, nArr(4), 'exec order')
 }
 
 const test3 = () => {
-    const result = []
+    const arr = []
+    const promise = new MyPromise((resolve, reject) => {
+        resolve(1)
+        reject(2)
+        resolve(3)
+    })
+    promise.then((res) => {
+        arr.push(res)
+    }).catch((err) => {
+        arr.push(err)
+    })
     
-    setTimeout(ensure, 1000, result, ['p1', 'p2', 'p3', 'finally'], 'basic')
+    setTimeout(ensure, 1000, arr, nArr(1), 'resolve & reject')
 }
 
 const test4 = () => {
-    const result = []
+    const arr = []
+    const promise = new MyPromise((resolve, reject) => {
+        setTimeout(() => {
+            resolve('success')
+            arr.push(1)
+        }, 100)
+    })
+
+    promise.then((res) => {
+        res === 'success' && arr.push(2)
+    })
+    promise.then((res) => {
+        res === 'success' && arr.push(3)
+    })
     
-    setTimeout(ensure, 1000, result, ['p1', 'p2', 'p3', 'finally'], 'basic')
+    setTimeout(ensure, 1000, arr, nArr(3), 'repeated calls')
 }
 
 const test5 = () => {
-    const result = []
+    const arr = []
+    MyPromise.resolve(1)
+        .then(2)
+        .then(MyPromise.resolve(3))
+        .then((v) => {
+            arr.push(v)
+        })
+
+    setTimeout(ensure, 1000, arr, nArr(1), 'illegal onFulfilled')
+}
+
+const test6 = () => {
+    const arr = []
+    process.nextTick(() => {
+      arr.push(2)
+    })
+    MyPromise.resolve().then(() => {
+        arr.push(3)
+    })
+    setImmediate(() => {
+        arr.push(4)
+    })
+    arr.push(1)
     
-    setTimeout(ensure, 1000, result, ['p1', 'p2', 'p3', 'finally'], 'basic')
+    setTimeout(ensure, 1000, arr, nArr(4), 'tick order')
 }
 
 const test = () => {
     log('testing ...')
     test1()
-    // test2()
-    // test3()
-    // test4()
-    // test5()
+    test2()
+    test3()
+    test4()
+    test5()
+    test6()
 }
 
 test()
