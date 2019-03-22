@@ -56,13 +56,19 @@ class MyPromise {
     _execOnTransform(onTransform, promise, resolve, reject) {
         const info = this._getInfo()
         const { status, result } = info
-        let next
         if (typeof onTransform === 'function') {
-            try {
-                next = onTransform(result)
-            } catch (e) {
-                reject(e)
-                return
+            let r = onTransform(result)
+            if (r === promise) {
+                // cause forever pending
+                throw new TypeError(`Chaining cycle detected for promise #<${this.constructor.name}>`)
+            } else if (r instanceof this.constructor) {
+                r.then((value) => {
+                    resolve(value)
+                }).catch((e) => {
+                    reject(e)
+                })
+            } else {
+                resolve(r)
             }
         } else {
             if (status === 'fulfilled') {
@@ -70,18 +76,6 @@ class MyPromise {
             } else {
                 reject(result)
             }
-        }
-        if (next === promise) {
-            // cause forever pending
-            throw new TypeError(`Chaining cycle detected for promise #<${this.constructor.name}>`)
-        } else if (next instanceof this.constructor) {
-            next.then((value) => {
-                resolve(value)
-            }).catch((e) => {
-                reject(e)
-            })
-        } else {
-            resolve(next)
         }
     }
 
