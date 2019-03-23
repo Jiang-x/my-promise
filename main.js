@@ -53,11 +53,11 @@ class MyPromise {
         this._hooks.push(hook)
     }
 
-    _execOnTransform(onTransform, promise, resolve, reject) {
+    _execOnTransform(callback, promise, resolve, reject) {
         const info = this._getInfo()
         const { status, result } = info
-        if (typeof onTransform === 'function') {
-            let r = onTransform(result)
+        if (typeof callback === 'function') {
+            const r = callback(result)
             if (r === promise) {
                 // cause forever pending
                 throw new TypeError(`Chaining cycle detected for promise #<${this.constructor.name}>`)
@@ -102,23 +102,17 @@ class MyPromise {
 
     then(onFulfilled, onRejected) {
         this._processed = true
-        const info = this._getInfo()
-        const { status, result } = info
+        const { status } = this._getInfo()
         if (status === 'pending') {
-            let resolve, reject
-            const promise = new this.constructor((res, rej) => {
-                [resolve, reject] = [res, rej]
-            })
-            this._addHook((status, result) => {
-                if (status === 'fulfilled') {
-                    this._execOnTransform(onFulfilled, promise, resolve, reject)
-                } else {
-                    this._execOnTransform(onRejected, promise, resolve, reject)
-                }
+            const promise = new this.constructor((resolve, reject) => {
+                this._addHook((status, result) => {
+                    const callback = status === 'fulfilled' ? onFulfilled : onRejected
+                    this._execOnTransform(callback, promise, resolve, reject)
+                })
             })
             return promise
         } else {
-            let callback = status === 'fulfilled' ? onFulfilled : onRejected
+            const callback = status === 'fulfilled' ? onFulfilled : onRejected
             const promise = new this.constructor((resolve, reject) => {
                 setImmediate(() => {
                     this._execOnTransform(callback, promise, resolve, reject)
@@ -133,16 +127,14 @@ class MyPromise {
         const info = this._getInfo()
         const { status, result } = info
         if (status === 'pending') {
-            let resolve, reject
-            const promise = new this.constructor((res, rej) => {
-                [resolve, reject] = [res, rej]
-            })
-            this._addHook((status, result) => {
-                if (status === 'fulfilled') {
-                    resolve(result)
-                } else {
-                    this._execOnTransform(onRejected, promise, resolve, reject)
-                }
+            const promise = new this.constructor((resolve, reject) => {
+                this._addHook((status, result) => {
+                    if (status === 'fulfilled') {
+                        resolve(result)
+                    } else {
+                        this._execOnTransform(onRejected, promise, resolve, reject)
+                    }
+                })
             })
             return promise
         } else if (status === 'fulfilled') {
@@ -164,17 +156,15 @@ class MyPromise {
         const info = this._getInfo()
         const { status, result } = info
         if (status === 'pending') {
-            let resolve, reject
-            const promise = new this.constructor((res, rej) => {
-                [resolve, reject] = [res, rej]
-            })
-            this._addHook((status, result) => {
-                onFinally()
-                if (status === 'fulfilled') {
-                    resolve(result)
-                } else {
-                    reject(result)
-                }
+            const promise = new this.constructor((resolve, reject) => {
+                this._addHook((status, result) => {
+                    onFinally()
+                    if (status === 'fulfilled') {
+                        resolve(result)
+                    } else {
+                        reject(result)
+                    }
+                })
             })
             return promise
         } else {
@@ -276,7 +266,9 @@ const test1 = () => {
         arr.push(4)
     })
     
-    setTimeout(ensure, 1000, arr, nArr(4), 'basic')
+    setTimeout(() => {
+        ensure(arr, nArr(4), 'basic')
+    }, 1000)
 }
 
 const test2 = () => {
@@ -291,7 +283,9 @@ const test2 = () => {
     })
     arr.push(3)
 
-    setTimeout(ensure, 1000, arr, nArr(4), 'exec order')
+    setTimeout(() => {
+        ensure(arr, nArr(4), 'exec order')
+    }, 1000)
 }
 
 const test3 = () => {
@@ -307,7 +301,9 @@ const test3 = () => {
         arr.push(err)
     })
     
-    setTimeout(ensure, 1000, arr, nArr(1), 'resolve & reject')
+    setTimeout(() => {
+        ensure(arr, nArr(1), 'resolve & reject')
+    }, 1000)
 }
 
 const test4 = () => {
@@ -326,7 +322,9 @@ const test4 = () => {
         res === 'success' && arr.push(3)
     })
     
-    setTimeout(ensure, 1000, arr, nArr(3), 'repeated calls')
+    setTimeout(() => {
+        ensure(arr, nArr(3), 'repeated calls')
+    }, 1000)
 }
 
 const test5 = () => {
@@ -338,7 +336,9 @@ const test5 = () => {
             arr.push(v)
         })
 
-    setTimeout(ensure, 1000, arr, nArr(1), 'illegal onFulfilled')
+    setTimeout(() => {
+        ensure(arr, nArr(1), 'illegal onFulfilled')
+    }, 1000)
 }
 
 const test6 = () => {
@@ -354,7 +354,9 @@ const test6 = () => {
     })
     arr.push(1)
     
-    setTimeout(ensure, 1000, arr, nArr(4), 'tick order')
+    setTimeout(() => {
+        ensure(arr, nArr(4), 'tick order')
+    }, 1000)
 }
 
 const test = () => {
