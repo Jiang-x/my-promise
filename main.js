@@ -87,8 +87,8 @@ class MyPromise {
         const { status } = this._getInfo()
         if (status === 'pending') {
             const promise = new this.constructor((resolve, reject) => {
-                this._addHook((status, result) => {
-                    const callback = status === 'fulfilled' ? onFulfilled : onRejected
+                this._addHook((s, r) => {
+                    const callback = s === 'fulfilled' ? onFulfilled : onRejected
                     this._execOnTransform(callback, promise, resolve, reject)
                 })
             })
@@ -108,8 +108,8 @@ class MyPromise {
         const { status, result } = info
         if (status === 'pending') {
             const promise = new this.constructor((resolve, reject) => {
-                this._addHook((status, result) => {
-                    const callback = status === 'fulfilled' ? null : onRejected
+                this._addHook((s, r) => {
+                    const callback = s === 'fulfilled' ? null : onRejected
                     this._addMicrotask(() => this._execOnTransform(callback, promise, resolve, reject))
                 })
             })
@@ -129,12 +129,12 @@ class MyPromise {
         const { status, result } = info
         if (status === 'pending') {
             const promise = new this.constructor((resolve, reject) => {
-                this._addHook((status, result) => {
+                this._addHook((s, r) => {
                     onFinally()
-                    if (status === 'fulfilled') {
-                        resolve(result)
+                    if (s === 'fulfilled') {
+                        resolve(r)
                     } else {
-                        reject(result)
+                        reject(r)
                     }
                 })
             })
