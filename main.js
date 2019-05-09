@@ -77,7 +77,7 @@ class MyPromise {
             } else {
                 resolve(r)
             }
-        } else {  // 非函数会形成值穿透
+        } else {  // onFulfilled 或 onRejected 不是函数时会发生值穿透
             if (status === 'fulfilled') {
                 resolve(result)
             } else {
@@ -372,15 +372,4 @@ const test = () => {
     test6()
 }
 
-// test()
-
-(new MyPromise((resolve, reject) => {
-    reject('xxx')
-})).catch(() => {
-    
-});
-
-MyPromise.reject(1)
-  .catch(2)
-  .catch(Promise.resolve(3))
-  .catch(console.log)
+test()
