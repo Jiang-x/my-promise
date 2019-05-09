@@ -22,7 +22,7 @@ class MyPromise {
             status = s
             result = r
             this._hooks.forEach((hook) => {
-                setImmediate(hook, status, result)
+                this._addMicrotask(() => hook(status, result))
             })
         }
         const resolve = pendingEnsure((value) => {
@@ -30,7 +30,7 @@ class MyPromise {
         })
         const reject = pendingEnsure((err) => {
             transformStatus('rejected', err)
-            setImmediate(() => {
+            this._addMicrotask(() => {
                 if (!this._processed) {
                     console.warn('UnhandledPromiseRejectionWarning:', err)
                     console.warn('DeprecationWarning: Unhandled promise rejections are deprecated. In the future, promise rejections that are not handled will terminate the Node.js process with a non-zero exit code.')
@@ -47,6 +47,10 @@ class MyPromise {
     _init() {
         this._hooks = []
         this._processed = false
+    }
+
+    _addMicrotask(callback) {
+        process.nextTick(callback)
     }
 
     _addHook(hook) {
@@ -114,9 +118,7 @@ class MyPromise {
         } else {
             const callback = status === 'fulfilled' ? onFulfilled : onRejected
             const promise = new this.constructor((resolve, reject) => {
-                setImmediate(() => {
-                    this._execOnTransform(callback, promise, resolve, reject)
-                })
+                this._addMicrotask(() => this._execOnTransform(callback, promise, resolve, reject))
             })
             return promise
         }
@@ -139,13 +141,11 @@ class MyPromise {
             return promise
         } else if (status === 'fulfilled') {
             return new this.constructor((resolve, reject) => {
-                setImmediate(resolve, result)
+                this._addMicrotask(() => resolve(result))
             })
         } else {
             const promise = new this.constructor((resolve, reject) => {
-                setImmediate(() => {
-                    this._execOnTransform(onRejected, promise, resolve, reject)
-                })
+                this._addMicrotask(() => this._execOnTransform(onRejected, promise, resolve, reject))
             })
             return promise
         }
@@ -169,7 +169,7 @@ class MyPromise {
             return promise
         } else {
             return new this.constructor((resolve, reject) => {
-                setImmediate(() => {
+                this._addMicrotask(() => {
                     onFinally()
                     if (status === 'fulfilled') {
                         resolve(result)
