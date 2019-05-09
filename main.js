@@ -18,6 +18,7 @@ class MyPromise {
                 }
             }
         }
+        
         const transformStatus = (s, r) => {
             status = s
             result = r
@@ -25,18 +26,20 @@ class MyPromise {
                 this._addMicrotask(() => hook(status, result))
             })
         }
+        
         const resolve = pendingEnsure((value) => {
             transformStatus('fulfilled', value)
         })
+        
         const reject = pendingEnsure((err) => {
             transformStatus('rejected', err)
             this._addMicrotask(() => {
                 if (!this._processed) {
                     console.warn('UnhandledPromiseRejectionWarning:', err)
-                    console.warn('DeprecationWarning: Unhandled promise rejections are deprecated. In the future, promise rejections that are not handled will terminate the Node.js process with a non-zero exit code.')
                 }
             })
         })
+        
         try {
             executor(resolve, reject)
         } catch (e) {
@@ -74,34 +77,13 @@ class MyPromise {
             } else {
                 resolve(r)
             }
-        } else {
+        } else {  // 非函数会形成值穿透
             if (status === 'fulfilled') {
                 resolve(result)
             } else {
                 reject(result)
             }
         }
-    }
-
-    toString() {
-        return `[object ${this.constructor.name}]`
-    }
-
-    valueOf() {
-        const info = this._getInfo()
-        const { status, result } = info
-        if (status === 'pending') {
-            return `${this.constructor.name} { <pending> }`
-        } else if (status === 'fulfilled') {
-            return `${this.constructor.name} { ${result} }`
-        } else {
-            return `${this.constructor.name} { \n  <rejected> ${result} }`
-        }
-    }
-
-    // Deprecated Method: to format output with console.log in Node.js 
-    inspect() {
-        return this.valueOf()
     }
 
     then(onFulfilled, onRejected) {
@@ -124,7 +106,7 @@ class MyPromise {
         }
     }
 
-    catch (onRejected) {
+    catch(onRejected) {
         this._processed = true
         const info = this._getInfo()
         const { status, result } = info
@@ -179,6 +161,27 @@ class MyPromise {
                 })
             })
         }
+    }
+    
+    toString() {
+        return `[object ${this.constructor.name}]`
+    }
+
+    valueOf() {
+        const info = this._getInfo()
+        const { status, result } = info
+        if (status === 'pending') {
+            return `${this.constructor.name} { <pending> }`
+        } else if (status === 'fulfilled') {
+            return `${this.constructor.name} { ${result} }`
+        } else {
+            return `${this.constructor.name} { \n  <rejected> ${result} }`
+        }
+    }
+
+    // Deprecated Method: to format output with console.log in Node.js 
+    inspect() {
+        return this.valueOf()
     }
 
     static resolve(value) {
@@ -369,7 +372,15 @@ const test = () => {
     test6()
 }
 
-test()
+// test()
 
+(new MyPromise((resolve, reject) => {
+    reject('xxx')
+})).catch(() => {
+    
+});
 
-
+MyPromise.reject(1)
+  .catch(2)
+  .catch(Promise.resolve(3))
+  .catch(console.log)
