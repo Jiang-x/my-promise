@@ -2,10 +2,11 @@ const log = console.log.bind(console)
 
 class MyPromise {
     constructor(executor) {
+        this._hooks = []
+        this._processed = false
         let status = 'pending'
         let result = null
-        this._init()
-        // closure
+        // 用闭包存储 promise 的状态，防止被手动篡改
         this._getInfo = () => ({
             status,
             result
@@ -47,11 +48,6 @@ class MyPromise {
         }
     }
 
-    _init() {
-        this._hooks = []
-        this._processed = false
-    }
-
     _addMicrotask(callback) {
         process.nextTick(callback)
     }
@@ -66,7 +62,7 @@ class MyPromise {
         if (typeof callback === 'function') {
             const r = callback(result)
             if (r === promise) {
-                // cause forever pending
+                // 防止造成永久的 pending
                 throw new TypeError(`Chaining cycle detected for promise #<${this.constructor.name}>`)
             } else if (r instanceof this.constructor) {
                 r.then((value) => {
@@ -98,8 +94,8 @@ class MyPromise {
             })
             return promise
         } else {
-            const callback = status === 'fulfilled' ? onFulfilled : onRejected
             const promise = new this.constructor((resolve, reject) => {
+                const callback = status === 'fulfilled' ? onFulfilled : onRejected
                 this._addMicrotask(() => this._execOnTransform(callback, promise, resolve, reject))
             })
             return promise
@@ -113,21 +109,15 @@ class MyPromise {
         if (status === 'pending') {
             const promise = new this.constructor((resolve, reject) => {
                 this._addHook((status, result) => {
-                    if (status === 'fulfilled') {
-                        resolve(result)
-                    } else {
-                        this._execOnTransform(onRejected, promise, resolve, reject)
-                    }
+                    const callback = status === 'fulfilled' ? null : onRejected
+                    this._addMicrotask(() => this._execOnTransform(callback, promise, resolve, reject))
                 })
             })
             return promise
-        } else if (status === 'fulfilled') {
-            return new this.constructor((resolve, reject) => {
-                this._addMicrotask(() => resolve(result))
-            })
         } else {
             const promise = new this.constructor((resolve, reject) => {
-                this._addMicrotask(() => this._execOnTransform(onRejected, promise, resolve, reject))
+                const callback = status === 'fulfilled' ? null : onRejected
+                this._addMicrotask(() => this._execOnTransform(callback, promise, resolve, reject))
             })
             return promise
         }
@@ -150,7 +140,7 @@ class MyPromise {
             })
             return promise
         } else {
-            return new this.constructor((resolve, reject) => {
+            const promise = new this.constructor((resolve, reject) => {
                 this._addMicrotask(() => {
                     onFinally()
                     if (status === 'fulfilled') {
@@ -160,6 +150,7 @@ class MyPromise {
                     }
                 })
             })
+            return promise
         }
     }
     
