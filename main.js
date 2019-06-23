@@ -141,14 +141,12 @@ class MyPromise {
             return promise
         } else {
             const promise = new this.constructor((resolve, reject) => {
-                this._addMicrotask(() => {
-                    onFinally()
-                    if (status === 'fulfilled') {
-                        resolve(result)
-                    } else {
-                        reject(result)
-                    }
-                })
+                onFinally()
+                if (status === 'fulfilled') {
+                    resolve(result)
+                } else {
+                    reject(result)
+                }
             })
             return promise
         }
