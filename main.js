@@ -36,6 +36,7 @@ class MyPromise {
             transformStatus('rejected', err)
             this._addMicrotask(() => {
                 if (!this._processed) {
+                    // 只要调用过 then / catch / finally 方法就说明 promise 的状态已经传递给下一个 pipe，就不会触发当前实例的未捕获异常
                     console.warn('UnhandledPromiseRejectionWarning:', err)
                 }
             })
@@ -56,24 +57,21 @@ class MyPromise {
         this._hooks.push(hook)
     }
 
-    _execOnTransform(callback, promise, resolve, reject) {
-        const info = this._getInfo()
-        const { status, result } = info
+    _execOnTransform(onFulfilled, onRejected, resolve, reject, promise) {
+        const { status, result } = this._getInfo()
+        const callback = status === 'fulfilled' ? onFulfilled : onRejected
         if (typeof callback === 'function') {
             const r = callback(result)
             if (r === promise) {
                 // 防止造成永久的 pending
                 throw new TypeError(`Chaining cycle detected for promise #<${this.constructor.name}>`)
             } else if (r instanceof this.constructor) {
-                r.then((value) => {
-                    resolve(value)
-                }).catch((e) => {
-                    reject(e)
-                })
+                r.then(resolve, reject)
             } else {
                 resolve(r)
             }
-        } else {  // onFulfilled 或 onRejected 不是函数时会发生值穿透
+        } else {
+            // onFulfilled 或 onRejected 不是函数时会发生值穿透
             if (status === 'fulfilled') {
                 resolve(result)
             } else {
@@ -85,71 +83,43 @@ class MyPromise {
     then(onFulfilled, onRejected) {
         this._processed = true
         const { status } = this._getInfo()
-        if (status === 'pending') {
-            const promise = new this.constructor((resolve, reject) => {
-                this._addHook((s, r) => {
-                    const callback = s === 'fulfilled' ? onFulfilled : onRejected
-                    this._execOnTransform(callback, promise, resolve, reject)
-                })
-            })
-            return promise
-        } else {
-            const promise = new this.constructor((resolve, reject) => {
-                const callback = status === 'fulfilled' ? onFulfilled : onRejected
-                this._addMicrotask(() => this._execOnTransform(callback, promise, resolve, reject))
-            })
-            return promise
-        }
+        const promise = new this.constructor((resolve, reject) => {
+            if (status === 'pending') {
+                this._addHook(() => this._execOnTransform(onFulfilled, onRejected, resolve, reject, promise))
+            } else {
+                this._addMicrotask(() => this._execOnTransform(onFulfilled, onRejected, resolve, reject, promise))
+            }
+        })
+        return promise
     }
 
     catch(onRejected) {
-        this._processed = true
-        const info = this._getInfo()
-        const { status, result } = info
-        if (status === 'pending') {
-            const promise = new this.constructor((resolve, reject) => {
-                this._addHook((s, r) => {
-                    const callback = s === 'fulfilled' ? null : onRejected
-                    this._addMicrotask(() => this._execOnTransform(callback, promise, resolve, reject))
-                })
-            })
-            return promise
-        } else {
-            const promise = new this.constructor((resolve, reject) => {
-                const callback = status === 'fulfilled' ? null : onRejected
-                this._addMicrotask(() => this._execOnTransform(callback, promise, resolve, reject))
-            })
-            return promise
-        }
+        return this.then(null, onRejected)
+    }
+    
+    _execOnFinally(onFinally, resolve, reject) {
+      if (typeof onFinally === 'function') {
+          onFinally()
+      }
+      const { status, result } = this._getInfo()
+      if (status === 'fulfilled') {
+          resolve(result)
+      } else {
+          reject(result)
+      }
     }
 
     finally(onFinally) {
         this._processed = true
-        const info = this._getInfo()
-        const { status, result } = info
-        if (status === 'pending') {
-            const promise = new this.constructor((resolve, reject) => {
-                this._addHook((s, r) => {
-                    onFinally()
-                    if (s === 'fulfilled') {
-                        resolve(r)
-                    } else {
-                        reject(r)
-                    }
-                })
-            })
-            return promise
-        } else {
-            const promise = new this.constructor((resolve, reject) => {
-                onFinally()
-                if (status === 'fulfilled') {
-                    resolve(result)
-                } else {
-                    reject(result)
-                }
-            })
-            return promise
-        }
+        const { status } = this._getInfo()
+        const promise = new this.constructor((resolve, reject) => {
+            if (status === 'pending') {
+                this._addHook(() => this._execOnFinally(onFinally, resolve, reject))
+            } else {
+                this._addMicrotask(() => this._execOnFinally(onFinally, resolve, reject))
+            }
+        })
+        return promise
     }
     
     toString() {
